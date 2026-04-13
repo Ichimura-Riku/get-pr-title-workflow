@@ -14,18 +14,26 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Debug info
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get merged PR info from commit
+        id: pr_info
         run: |
-          echo "=== github.sha ==="
-          echo "${{ github.sha }}"
-          echo ""
-          echo "=== merge commit message ==="
-          git log -1 --format=%s
-          echo ""
-          echo "=== gh pr list --search with SHA ==="
-          gh pr list --search "${{ github.sha }}" --state merged --limit 5 --json number,title,url || echo "search failed"
-          echo ""
-          echo "=== gh pr list recent merged ==="
-          gh pr list --state merged --limit 3 --json number,title,url
+          # マージコミットの subject から PR 番号を抽出
+          # 例: "Merge pull request #4 from user/branch" → "4"
+          PR_NUMBER=$(git log -1 --format=%s | grep -oE '#[0-9]+' | head -1 | tr -d '#')
+
+          # マージコミットの body が PR タイトル
+          PR_TITLE=$(git log -1 --format=%b)
+
+          if [ -n "$PR_NUMBER" ]; then
+            PR_URL="https://github.com/${{ github.repository }}/pull/${PR_NUMBER}"
+          else
+            PR_URL=""
+          fi
+
+          echo "title=${PR_TITLE:-N/A}" >> $GITHUB_OUTPUT
+          echo "url=${PR_URL:-}" >> $GITHUB_OUTPUT
+
+      - name: Output PR info
+        run: |
+          echo "PR Title: ${{ steps.pr_info.outputs.title }}"
+          echo "PR URL: ${{ steps.pr_info.outputs.url }}"
