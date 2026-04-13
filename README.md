@@ -1,3 +1,3 @@
 # deploy-check
 
-diff commit 
+diff commit +1
