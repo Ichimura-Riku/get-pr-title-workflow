@@ -1,7 +1,6 @@
 name: On PR Merged to main
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
 
@@ -9,27 +8,43 @@ jobs:
   extract-pr-info:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+
       - name: Get merged PR info
         id: pr-info
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # マージコミットSHAから関連PRを取得
-          PR_JSON=$(gh api \
-            "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
-            --jq '.[0] | {number, title, html_url}')
+          # マージコミットメッセージから PR 番号を抽出し、gh pr view で詳細を取得する。
+          # commits/{sha}/pulls はインデックス遅延でマージ直後に空を返すことがあるため、
+          # インデックスに依存しないコミットメッセージ解析に切り替える。
+          #
+          # 対象フォーマット: "Merge pull request #NNNN from ..."（GitHub のデフォルトマージコミット形式）
+          # マージコミット以外（直接push、workflow_dispatch で PR 非関連のコミット等）は
+          # PR 番号が抽出できず、title/url/number は空文字として出力される。
+          COMMIT_MESSAGE=$(git log -1 --pretty=%B "${{ github.sha }}")
+          PR_NUMBER=$(echo "$COMMIT_MESSAGE" | sed -nE '1s/^Merge pull request #([0-9]+) from .*/\1/p')
 
-          PR_TITLE=$(echo "$PR_JSON" | jq -r '.title')
-          PR_URL=$(echo "$PR_JSON" | jq -r '.html_url')
-          PR_NUMBER=$(echo "$PR_JSON" | jq -r '.number')
+          PR_TITLE=""
+          PR_URL=""
+          if [ -n "$PR_NUMBER" ]; then
+            if PR_JSON=$(gh pr view "$PR_NUMBER" --json title,url 2>/dev/null); then
+              PR_TITLE=$(echo "$PR_JSON" | jq -r '.title // empty')
+              PR_URL=$(echo "$PR_JSON" | jq -r '.url // empty')
+            fi
+          fi
 
-          echo "title=$PR_TITLE" >> "$GITHUB_OUTPUT"
-          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
-          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "title=${PR_TITLE}" >> "$GITHUB_OUTPUT"
+          echo "url=${PR_URL}" >> "$GITHUB_OUTPUT"
+          echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
 
           echo "## Merged PR" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **#${PR_NUMBER}** ${PR_TITLE}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- ${PR_URL}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$PR_NUMBER" ]; then
+            echo "- **#${PR_NUMBER}** ${PR_TITLE}" >> "$GITHUB_STEP_SUMMARY"
+            echo "- ${PR_URL}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- (no merged PR associated with this commit)" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       # 後続ステップでの利用例
       - name: Use PR info
