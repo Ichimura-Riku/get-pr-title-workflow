@@ -1,0 +1,30 @@
+name: Deploy Check
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+jobs:
+  check_pr_info:
+    name: Check PR Info
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Get merged PR info
+        id: pr_info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_TITLE=$(gh pr list --search "${{ github.sha }}" --state merged --limit 1 --json title --jq '.[0].title')
+          PR_URL=$(gh pr list --search "${{ github.sha }}" --state merged --limit 1 --json url --jq '.[0].url')
+          echo "title=${PR_TITLE:-N/A}" >> $GITHUB_OUTPUT
+          echo "url=${PR_URL:-}" >> $GITHUB_OUTPUT
+
+      - name: Output PR info
+        run: |
+          echo "PR Title: ${{ steps.pr_info.outputs.title }}"
+          echo "PR URL: ${{ steps.pr_info.outputs.url }}"
