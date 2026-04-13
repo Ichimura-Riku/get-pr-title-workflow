@@ -19,8 +19,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_TITLE=$(gh pr list --search "${{ github.sha }}" --state merged --limit 1 --json title --jq '.[0].title')
-          PR_URL=$(gh pr list --search "${{ github.sha }}" --state merged --limit 1 --json url --jq '.[0].url')
+          PR_TITLE=$(gh api repos/${{ github.repository }}/commits/${{ github.sha }}/pulls --jq '.[0].title')
+          PR_URL=$(gh api repos/${{ github.repository }}/commits/${{ github.sha }}/pulls --jq '.[0].html_url')
           echo "title=${PR_TITLE:-N/A}" >> $GITHUB_OUTPUT
           echo "url=${PR_URL:-}" >> $GITHUB_OUTPUT
 
