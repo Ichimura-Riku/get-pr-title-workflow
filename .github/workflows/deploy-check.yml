@@ -3,7 +3,9 @@ name: On PR Merged to main
 on:
   push:
     branches: [main]
-
+permissions:
+  pull-requests: read
+  
 jobs:
   extract-pr-info:
     runs-on: ubuntu-latest
