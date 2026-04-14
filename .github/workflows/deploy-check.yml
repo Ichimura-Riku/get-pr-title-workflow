@@ -16,52 +16,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Primary: マージコミットメッセージから PR 番号を抽出し、gh pr view で詳細を取得する。
-          # commits/{sha}/pulls はインデックス遅延でマージ直後に空を返すことがあるため、
-          # インデックスに依存しないコミットメッセージ解析をメインパスとする。
-          #
-          # 対象フォーマット: "Merge pull request #NNNN from ..."（GitHub のデフォルトマージコミット形式）
-          COMMIT_MESSAGE=$(git log -1 --pretty=%B "${{ github.sha }}")
-          PR_NUMBER=$(echo "$COMMIT_MESSAGE" | sed -nE '1s/^Merge pull request #([0-9]+) from .*/\1/p')
+          echo "none workflow"
 
-          PR_TITLE=""
-          PR_URL=""
-
-          if [ -n "$PR_NUMBER" ]; then
-            if PR_JSON=$(gh pr view "$PR_NUMBER" --json title,url 2>/dev/null); then
-              PR_TITLE=$(echo "$PR_JSON" | jq -r '.title // empty')
-              PR_URL=$(echo "$PR_JSON" | jq -r '.url // empty')
-            fi
-          fi
-
-          # Fallback: Primary で取得できなかった場合のみ commits/{sha}/pulls で補完。
-          # squash merge 等で message 形式が異なるケース向け。
-          if [ -z "$PR_TITLE" ] && [ -z "$PR_URL" ]; then
-            echo "Primary extraction failed, falling back to commits/{sha}/pulls"
-            PR_JSON_FALLBACK=$(gh api \
-              "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
-              --jq '.[0]' 2>/dev/null || echo "null")
-            if [ -n "$PR_JSON_FALLBACK" ] && [ "$PR_JSON_FALLBACK" != "null" ]; then
-              PR_TITLE=$(echo "$PR_JSON_FALLBACK" | jq -r '.title // empty')
-              PR_URL=$(echo "$PR_JSON_FALLBACK" | jq -r '.html_url // empty')
-              PR_NUMBER=$(echo "$PR_JSON_FALLBACK" | jq -r '.number // empty')
-            fi
-          fi
-
-          echo "title=${PR_TITLE}" >> "$GITHUB_OUTPUT"
-          echo "url=${PR_URL}" >> "$GITHUB_OUTPUT"
-          echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
-
-          echo "## Merged PR" >> "$GITHUB_STEP_SUMMARY"
-          if [ -n "$PR_NUMBER" ]; then
-            echo "- **#${PR_NUMBER}** ${PR_TITLE}" >> "$GITHUB_STEP_SUMMARY"
-            echo "- ${PR_URL}" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- (no merged PR associated with this commit)" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      # 後続ステップでの利用例
-      - name: Use PR info
-        run: |
-          echo "PR: ${{ steps.pr-info.outputs.title }}"
-          echo "URL: ${{ steps.pr-info.outputs.url }}"
